@@ -1,0 +1,206 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+DeepTutor is an AI-powered personalized learning assistant with a multi-agent architecture. The system consists of:
+- **Backend**: FastAPI server with WebSocket support (Python 3.10+)
+- **Frontend**: Next.js 16 web application (React 19, TypeScript)
+- **Knowledge Base**: LightRAG-based vector storage with knowledge graph capabilities
+- **Multi-Agent System**: Specialized agents for problem-solving, research, question generation, and learning guidance
+
+## Development Commands
+
+### Environment Setup
+```bash
+# Create and activate conda environment (recommended)
+conda create -n deeptutor python=3.10
+conda activate deeptutor
+
+# Or use venv
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+npm install --prefix web
+```
+
+### Running the Application
+```bash
+# Start web interface (recommended)
+python scripts/start_web.py
+
+# CLI-only mode
+python scripts/start.py
+
+# Development mode with hot reload
+# Backend: uvicorn src.api.main:app --reload --port 8001
+# Frontend: cd web && npm run dev
+```
+
+### Docker Deployment
+```bash
+# Pre-built image (fastest)
+docker run -d --name deeptutor -p 8001:8001 -p 3782:3782 --env-file .env ghcr.io/hkuds/deeptutor:latest
+
+# Build from source
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Stop services
+docker compose down
+```
+
+### Knowledge Base Operations
+```bash
+# Initialize new knowledge base
+python -m src.knowledge.start_kb init <kb_name> --docs <pdf_path>
+
+# Add documents to existing KB (incremental)
+python -m src.knowledge.add_documents <kb_name> --docs <new_document.pdf>
+
+# Extract numbered items (Definitions, Theorems, Equations)
+python src/knowledge/extract_numbered_items.py --kb <kb_name> --base-dir ./data/knowledge_bases
+# Or use shell script: ./scripts/extract_numbered_items.sh <kb_name>
+```
+
+### Testing Individual Modules
+```bash
+# Test Deep Research module
+python src/agents/research/main.py --topic "Deep Learning" --preset medium
+
+# Test question generation
+python src/agents/question/example.py
+```
+
+## Architecture
+
+### Backend Structure (src/)
+
+**Core Modules** (`src/core/`):
+- `core.py`: Unified configuration management, environment variable loading, LLM configuration
+- `llm_provider.py`: LLM provider management (OpenAI, Azure, Ollama, etc.)
+- `logging/`: Centralized logging with LightRAG integration
+
+**API Layer** (`src/api/`):
+- `main.py`: FastAPI application with CORS, static file mounting, router registration
+- `routers/`: Endpoint definitions for each module (solve, question, research, guide, etc.)
+- WebSocket support for real-time streaming of agent outputs
+
+**Agent Modules** (`src/agents/`):
+- **solve**: Dual-loop (Analysis + Solve) problem-solving with citations
+- **research**: DR-in-KG (Deep Research in Knowledge Graph) with dynamic topic queue
+- **question**: Dual-mode (Custom + Mimic) question generation with validation
+- **guide**: Progressive learning with interactive HTML pages and Q&A
+- **co_writer**: Interactive markdown editor with AI-assisted writing and TTS
+- **ideagen**: Research idea generation from notebook records
+
+**Tools** (`src/tools/`):
+- `rag_tool.py`: RAG retrieval (naive + hybrid modes)
+- `web_search.py`: Perplexity API integration
+- `paper_search_tool.py`: arXiv paper search
+- `code_executor.py`: Sandboxed Python code execution
+- `query_item_tool.py`: Knowledge graph entity lookup
+
+**Knowledge Base** (`src/knowledge/`):
+- LightRAG integration for document processing
+- Vector store + knowledge graph architecture
+- Incremental document addition support
+
+### Frontend Structure (web/)
+
+Built with Next.js 16, React 19, TypeScript, and Tailwind CSS:
+- `/app`: Next.js App Router pages
+- `/components`: React components for each module
+- API communication via WebSocket (real-time) and REST
+
+### Configuration Files
+
+**Environment Variables** (`.env`):
+- Copy `.env.example` to `.env`
+- Required: `LLM_MODEL`, `LLM_BINDING_API_KEY`, `LLM_BINDING_HOST`
+- Required: `EMBEDDING_MODEL`, `EMBEDDING_BINDING_API_KEY`, `EMBEDDING_BINDING_HOST`
+- Optional: `PERPLEXITY_API_KEY` (web search), `TTS_*` (text-to-speech)
+
+**YAML Configuration**:
+- `config/main.yaml`: System-wide settings (ports, paths, tool switches, module configs)
+- `config/agents.yaml`: Per-agent LLM parameters (temperature, max_tokens)
+
+### Data Storage (`data/`)
+
+All user content persists in `data/`:
+```
+data/
+├── knowledge_bases/          # Vector stores + knowledge graphs
+└── user/
+    ├── solve/                # Problem solving sessions
+    ├── question/             # Generated questions
+    ├── research/             # Research reports and cache
+    ├── co-writer/            # Documents and audio files
+    ├── notebook/             # User notebooks
+    ├── guide/                # Learning sessions
+    └── run_code_workspace/   # Code execution sandbox
+```
+
+## Key Implementation Patterns
+
+### Multi-Agent Architecture
+Each agent module follows a consistent pattern:
+1. **Base Agent Class**: Defines common LLM interaction methods
+2. **Specialized Agents**: Inherit from base with specific responsibilities
+3. **Coordinator/Pipeline**: Orchestrates agent collaboration
+4. **Memory/State Management**: JSON-based persistence for context
+
+Example: Research module uses RephraseAgent → DecomposeAgent → (ManagerAgent + ResearchAgent + NoteAgent) → ReportingAgent
+
+### Citation System
+Both Solve and Research modules use centralized citation management:
+- **Single source of truth**: CitationManager handles ID generation and deduplication
+- **ID formats**: `PLAN-XX` (planning) and `CIT-X-XX` (research, X=block number)
+- **Inline citations**: LLM outputs `[N]`, post-processed to `[[N]](#ref-N)` markdown links
+- **Thread-safe**: AsyncCitationManagerWrapper for parallel execution
+
+### RAG Integration
+Knowledge retrieval uses LightRAG with two modes:
+- **Naive mode**: Direct vector similarity search
+- **Hybrid mode**: Combines vector search + knowledge graph queries
+- Configured via `tools.rag_tool` in `config/main.yaml`
+
+### Real-time Streaming
+WebSocket endpoints stream agent progress:
+- Backend: FastAPI WebSocket with progress callbacks
+- Frontend: React components subscribe to WebSocket updates
+- Status messages, intermediate results, and final outputs
+
+## Critical Implementation Notes
+
+### uvloop Event Loop Limitation
+When initializing knowledge bases, avoid using `nest_asyncio` with uvloop (used by Uvicorn). Extract numbered items using the standalone script instead of the API endpoint.
+
+### Configuration Loading
+Use `src.core.core.load_config_with_main()` to merge module-specific config with `main.yaml`. Agent LLM parameters are automatically loaded from `config/agents.yaml`.
+
+### Parallel Execution
+Research module supports parallel topic processing:
+- Set `execution_mode: "parallel"` in `config/main.yaml`
+- Uses `asyncio.Semaphore` for concurrency control
+- Thread-safe wrappers for shared state (CitationManager, DynamicTopicQueue)
+
+### Port Management
+Ports are configured in multiple locations:
+- `config/main.yaml`: `server.backend_port` and `server.frontend_port`
+- `.env`: `BACKEND_PORT` and `FRONTEND_PORT` (override for Docker)
+- Default: Backend=8001, Frontend=3782
+
+On Windows, use `netstat -ano | findstr :PORT` and `taskkill /PID <PID> /F` to kill stuck processes after Ctrl+C.
+
+### Question Generation Mimic Mode
+Requires MinerU for PDF parsing. Generated questions are stored in timestamped directories: `mimic_YYYYMMDD_HHMMSS_{pdf_name}/`
+
+### Code Execution Sandbox
+Python code execution via `src.tools.code_executor` is restricted to `data/user/` and `src/tools/` directories for security.

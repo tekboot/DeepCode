@@ -1,0 +1,63 @@
+I am building an application that ingests documents and offers an interactive tutoring experience on top of them.
+The app allows users to chat with their documents in order to:
+
+understand and summarize content,
+
+get step-by-step explanations,
+
+generate visual representations,
+
+and benefit from a personalized mentor/tutor that explains concepts interactively based strictly on the document content.
+
+So far, the app supports documents uploaded from a local device.
+I now want to extend it to support multiple developer-centric data sources, including (but not limited to):
+
+GitHub repositories (codebase extraction and understanding),
+
+Google Gmail (selective email extraction),
+
+Slack workspaces (conversation history),
+
+Jira boards (tickets, epics, workflows),
+
+Confluence pages (knowledge bases, specs, documentation),
+
+and other relevant structured or semi-structured data sources.
+
+All extracted content should be:
+
+normalized into documents,
+
+displayed in the application interface,
+
+and indexed in a way that allows deep contextual understanding.
+
+A local agent is used to protect user data (no third-party online agents).
+The agent provides a chat interface that:
+
+answers strictly based on the ingested documents,
+
+cites sources and references precisely,
+
+minimizes hallucinations,
+
+maximizes context retention across long documents and multiple sources.
+
+I would like you to perform a state-of-the-art research (as of December 2025) and propose:
+
+The best architectural patterns for connecting, extracting, and normalizing data from these heterogeneous sources.
+
+The most robust approaches for local-first RAG, long-context handling, and citation-aware responses.
+
+Strategies to ensure data privacy, isolation, and source traceability.
+
+Design choices that scale from individual developers to teams.
+
+Trade-offs between indexing strategies, chunking methods, embeddings, and hybrid retrieval.
+
+How to structure the system so the tutor behaves like a true interactive mentor, not a generic chatbot.
+
+Please provide a clear, structured implementation plan, including components, responsibilities, and data flow.
+
+DO NOT write any code yet.
+Focus strictly on research, architecture, and design decisions.
